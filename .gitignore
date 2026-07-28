@@ -1,0 +1,26 @@
+# Nextflow
+work/
+.nextflow/
+.nextflow.log*
+results/
+
+# Local Claude Code settings
+.claude/
+
+# Raw/large sequencing and reference data — never commit
+*.bam
+*.bam.bai
+*.cram
+*.cram.crai
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+*.fna
+*.fasta
+*.fa
+*.fa.fai
+*.dict
+
+# OS
+.DS_Store
