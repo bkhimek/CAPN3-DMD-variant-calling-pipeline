@@ -19,6 +19,33 @@ https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/data/AshkenazimTrio/HG0
   can pull just the CAPN3/DMD loci via the `.bai` index without downloading
   the full ~126GB (300x) / correspondingly smaller-but-still-large 60x file.
 
+## Reference genome — GRCh38, chr15 + chrX
+
+```
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna.gz
+MD5: a056c57649f3c9964c68aead3849bbf8 (from the directory's md5checksums.txt)
+```
+
+The exact reference the HG002 source BAM was aligned against (per its own
+`README_NHGRI_Novoalign_bams`) — required so alignment coordinates and
+variant calls come out in the same coordinate system as both the source BAM
+and the GIAB truth VCF.
+
+This file is plain gzip, not bgzip (confirmed: `samtools faidx` on the remote
+URL fails with "Cannot index files compressed with gzip, please use bgzip"),
+so unlike the HG002 BAM there's no free remote random-access trick here — it
+has to be downloaded in full (~875MB compressed) once. `scripts/fetch_reference.sh`
+downloads it, verifies the checksum above, decompresses, then extracts full
+chr15 + chrX (not just the padded CAPN3/DMD region — alignment needs the full
+chromosome as the reference contig so BWA-MEM2's reported positions are true
+GRCh38 genome coordinates, not offsets from an arbitrary region start) and
+builds the samtools + BWA-MEM2 indexes. Output: `data/reference/GRCh38_chr15_chrX.fna`
+(+ indexes), ~1.6GB on disk, gitignored. The full-genome intermediate is
+deleted after extraction to reclaim ~4GB; re-run the script to regenerate.
+
+Verified: extracted chr15 is 101,991,189bp and chrX is 156,040,895bp — both
+match the known GRCh38 chromosome lengths exactly.
+
 ## GIAB truth set — NISTv4.2.1, GRCh38
 
 ```

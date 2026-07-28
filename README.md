@@ -11,14 +11,23 @@ See `project5_scoping.md` for the full design rationale and decisions, and
 
 ## Status
 
-Batch 1 of N. `EXTRACT_REGION` (module 1 of 7) is implemented and verified
-end-to-end: pulls the CAPN3 + DMD padded regions directly out of the remote
-GIAB HG002 60x GRCh38 BAM via HTTP range requests (no full-genome download),
-converts to paired FASTQ. Confirmed 336,549 paired reads extracted across
-both loci.
+Batch 2 of N. Modules 1-2 of 7 implemented and verified end-to-end:
 
-Remaining modules (not yet built): `bwa_align`, `sort_markdup`, `gatk_call`,
+- `EXTRACT_REGION` — pulls the CAPN3 + DMD padded regions directly out of the
+  remote GIAB HG002 60x GRCh38 BAM via HTTP range requests (no full-genome
+  download), converts to paired FASTQ. Confirmed 336,549 paired reads
+  extracted across both loci.
+- `BWA_ALIGN` — aligns those reads against a scoped GRCh38 reference (full
+  chr15 + chrX chromosomes, not just the padded region, so alignment
+  coordinates stay in true genome space and line up with the GIAB truth VCF).
+  Confirmed 99.76% mapped, 99.22% properly paired, and every mapped read
+  lands on chr15 or chrX (no off-target contamination).
+
+Remaining modules (not yet built): `sort_markdup`, `gatk_call`,
 `deepvariant_call`, `cross_check_vcfs`, `happy_benchmark`.
+
+Before running, fetch the scoped reference once (see `scripts/fetch_reference.sh`
+below) — it's gitignored (large binary), not committed.
 
 ## Pipeline architecture
 
@@ -26,7 +35,7 @@ Remaining modules (not yet built): `bwa_align`, `sort_markdup`, `gatk_call`,
 HG002 public pre-aligned BAM (GRCh38, remote, region-extracted via HTTP range + .bai)
         ▼
   region-subset BAM → FASTQ (R1/R2)          [EXTRACT_REGION — done]
-        │  BWA-MEM2 align to GRCh38
+        │  BWA-MEM2 align to GRCh38          [BWA_ALIGN — done]
         ▼
   aligned BAM → sort + mark duplicates
         ├──────────────┐
@@ -56,12 +65,22 @@ version (NISTv4.2.1/GRCh38), and Docker image tags — all reachability- and
 
 ## Running
 
+One-time setup — fetch and index the scoped reference (chr15 + chrX,
+~1.6GB on disk once built, verified against NCBI's published checksum):
+
+```bash
+./scripts/fetch_reference.sh
+```
+
+Then run the pipeline:
+
 ```bash
 conda activate nextflow
 nextflow run main.nf -profile docker
 ```
 
-Outputs land in `results/` (gitignored).
+Outputs land in `results/` (gitignored). Use `-resume` to reuse cached
+results from prior modules when iterating on a new one.
 
 ## Repo conventions
 
