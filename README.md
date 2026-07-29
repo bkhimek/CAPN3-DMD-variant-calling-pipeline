@@ -12,7 +12,8 @@ See `project5_scoping.md` for the full design rationale and decisions, and
 ## Status
 
 **Complete — core 7-module FASTQ→VCF→benchmark pipeline, plus an
-`ANNOTATE_CALLS` annotation stage (2 modules) feeding project 4's
+`ANNOTATE_CALLS` annotation stage (2 modules) feeding
+[CAPN3-DMD-variant-classifier](https://github.com/bkhimek/CAPN3-DMD-variant-classifier)'s
 `VariantEvidenceBundle`.** All 9 modules implemented and verified
 end-to-end:
 
@@ -123,7 +124,7 @@ HG002 public pre-aligned BAM (GRCh38, remote, region-extracted via HTTP range + 
      per caller, per region       [GNOMAD_ANNOTATE — done]
                                           ▼
                               annotated_calls.vcf.gz
-                       (→ project 4's VariantEvidenceBundle adapter)
+                       (→ CAPN3-DMD-variant-classifier's VariantEvidenceBundle adapter)
 ```
 
 ## Target regions (GRCh38, chr-prefixed, verified 2026-07-28 — see `docs/regions.md`)

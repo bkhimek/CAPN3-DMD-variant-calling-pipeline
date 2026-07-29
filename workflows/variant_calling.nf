@@ -90,8 +90,8 @@ workflow VARIANT_CALLING {
 
     // Annotates the concordant (GATK ∩ DeepVariant) call set — this
     // pipeline's highest-confidence answer — with transcript consequence
-    // (VEP) and population frequency (gnomAD v4.1), feeding project 4's
-    // VariantEvidenceBundle adapter.
+    // (VEP) and population frequency (gnomAD v4.1), feeding
+    // CAPN3-DMD-variant-classifier's VariantEvidenceBundle adapter.
     gene_annotation_gff     = Channel.value(file(params.gene_annotation_gff))
     gene_annotation_gff_tbi = Channel.value(file("${params.gene_annotation_gff}.tbi"))
 
