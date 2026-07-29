@@ -11,7 +11,9 @@ See `project5_scoping.md` for the full design rationale and decisions, and
 
 ## Status
 
-**Complete.** Batch 7 of 7 — all 7 modules implemented and verified
+**Complete — core 7-module FASTQ→VCF→benchmark pipeline, plus an
+`ANNOTATE_CALLS` annotation stage (2 modules) feeding project 4's
+`VariantEvidenceBundle`.** All 9 modules implemented and verified
 end-to-end:
 
 - `EXTRACT_REGION` — pulls the CAPN3 + DMD padded regions directly out of the
@@ -66,11 +68,35 @@ end-to-end:
   finding). Both benchmark runs report the same `TRUTH.TOTAL` (612),
   confirming both correctly used the same fetched truth-set region.
 
-All 7 modules done — the pipeline runs FASTQ (remote) → BAM → VCF →
-benchmarked precision/recall report end-to-end.
+- `VEP_ANNOTATE` — runs Ensembl VEP against the concordant (GATK ∩
+  DeepVariant) call set — this pipeline's highest-confidence answer — using a
+  gene-scoped GFF3 (CAPN3 + DMD full gene hierarchy, see
+  `scripts/fetch_gene_annotation.sh`) and the existing scoped reference FASTA,
+  rather than a full VEP cache download. Confirmed live: CSQ annotations on
+  both genes' MANE Select transcripts (CAPN3 `ENST00000397163.8`, DMD
+  `ENST00000357033.9`) are present and internally consistent (e.g. a CAPN3
+  `c.706G>A` missense call's codon change `Gca/Aca` correctly predicts
+  `p.Ala236Thr`; a DMD `c.8810G>A` call on the minus strand shows genomic
+  `C>T`, consistent with reverse-complementing across the gene's strand).
+- `GNOMAD_ANNOTATE` — annotates VEP's output with gnomAD v4.1 genomes
+  population frequency (AC/AN/AF/AF_grpmax/nhomalt), region-extracted
+  directly from the remote public sites VCFs (same HTTP-range + tabix trick
+  as the HG002 BAM and GIAB truth VCF elsewhere in this pipeline — no
+  16.9GB/chromosome full download). Confirmed live against an independent
+  `bcftools view` lookup on two known concordant variants: CAPN3
+  `chr15:42389001 G>A` (gnomAD AF=0.222151, matches exactly) and DMD
+  `chrX:31478233 C>T` (gnomAD AF=0.938899, matches exactly) — both common
+  variants, consistent with this pipeline's earlier finding that HG002's
+  CAPN3/DMD calls are ordinary benign background polymorphism, not disease
+  variants (see `~/projects/HANDOFF.md`).
+
+All 9 modules done — the pipeline runs FASTQ (remote) → BAM → VCF →
+benchmarked precision/recall report → annotated (transcript consequence +
+population frequency) call set end-to-end.
 
 Before running, fetch the scoped reference once (see `scripts/fetch_reference.sh`
-below) — it's gitignored (large binary), not committed.
+below) and the gene annotation once (see `scripts/fetch_gene_annotation.sh`)
+— both gitignored (large/regeneratable), not committed.
 
 ## Pipeline architecture
 
@@ -88,11 +114,16 @@ HG002 public pre-aligned BAM (GRCh38, remote, region-extracted via HTTP range + 
         └──────┬───────┘
                ▼
        cross-check (concordant / discordant calls)  [CROSS_CHECK_VCFS — done]
-               ▼
-   hap.py vs. GIAB HG002 truth VCF (region-subset confident BED)
-   [HAPPY_BENCHMARK — done]
-               ▼
-     precision/recall report per caller, per region
+               ├──────────────────────────────┐
+               ▼                              ▼
+   hap.py vs. GIAB HG002 truth VCF      VEP (transcript consequence)
+   [HAPPY_BENCHMARK — done]             [VEP_ANNOTATE — done]
+               ▼                              ▼
+     precision/recall report      gnomAD v4.1 (population frequency)
+     per caller, per region       [GNOMAD_ANNOTATE — done]
+                                          ▼
+                              annotated_calls.vcf.gz
+                       (→ project 4's VariantEvidenceBundle adapter)
 ```
 
 ## Target regions (GRCh38, chr-prefixed, verified 2026-07-28 — see `docs/regions.md`)
@@ -115,6 +146,13 @@ One-time setup — fetch and index the scoped reference (chr15 + chrX,
 
 ```bash
 ./scripts/fetch_reference.sh
+```
+
+...and fetch the gene-scoped annotation for VEP (~40KB on disk once built,
+verified against Ensembl's published checksum):
+
+```bash
+./scripts/fetch_gene_annotation.sh
 ```
 
 Then run the pipeline:

@@ -69,3 +69,47 @@ project needs. Revisit if project 5 later grows a structural-variant track.
 | GATK | `broadinstitute/gatk:4.6.2.0` (also used for `SORT_MARKDUP` — confirmed this image bundles `samtools` at `/usr/bin/samtools` alongside `gatk`, so sort + `MarkDuplicates` + index share one container instead of pulling in a separate Picard-only image) |
 | DeepVariant | `google/deepvariant:1.10.0` |
 | hap.py | `jmcdani20/hap.py:v0.3.12` (pkrusche/hap.py is dead since 2017; this fork is the maintained alternative the scoping doc called out) |
+| VEP | `ensemblorg/ensembl-vep:release_116.0` (pinned 2026-07-29; verified live against Docker Hub's tag list — `release_117.0` does not yet exist, `release_116.0` and `latest` share the same digest, both last pushed 2026-06-10) |
+
+## Ensembl GRCh38 gene annotation (GFF3) — for `ANNOTATE_CALLS`/VEP
+
+```
+https://ftp.ensembl.org/pub/release-116/gff3/homo_sapiens/Homo_sapiens.GRCh38.116.gff3.gz
+BSD sum (Ensembl's own CHECKSUMS file format): 02333 105838
+```
+
+Plain gzip, not bgzip/tabix-indexed at the source (confirmed live: no `.tbi`
+alongside it), so — same rationale as the reference FASTA above — this is a
+one-time ~100MB download via `scripts/fetch_gene_annotation.sh`, not fetched
+per pipeline run. The script extracts the full CAPN3 (`ENSG00000092529`) and
+DMD (`ENSG00000198947`) gene hierarchies (gene → transcript → exon/CDS/UTR)
+by following GFF3 Parent references three levels deep, *not* a coordinate-
+window slice: an earlier attempt that kept any line overlapping the padded
+regions left dangling child features whose parent gene fell just outside the
+window, which crashed VEP (`Can't call method "strand" on an undefined
+value`) — caught and fixed before finalizing the script, not shipped broken.
+Chromosome names are renamed from Ensembl's bare `15`/`X` to `chr15`/`chrX`
+to match this project's BWA-aligned reference and VCFs. Output:
+`data/reference/CAPN3_DMD.gff3.gz` (+ `.tbi`), ~40KB, gitignored.
+
+MANE Select transcripts used for VEP's clinically-relevant-transcript
+selection (cross-checked against NCBI/EBI's MANE summary file directly, not
+carried over from memory): CAPN3 `NM_000070.3` / `ENST00000397163.8`; DMD
+`NM_004006.3` / `ENST00000357033.9`.
+
+## gnomAD v4.1 genomes — population frequency for `ANNOTATE_CALLS`
+
+```
+https://storage.googleapis.com/gcp-public-data--gnomad/release/4.1/vcf/genomes/gnomad.genomes.v4.1.sites.chr15.vcf.bgz(.tbi)
+https://storage.googleapis.com/gcp-public-data--gnomad/release/4.1/vcf/genomes/gnomad.genomes.v4.1.sites.chrX.vcf.bgz(.tbi)
+```
+
+Confirmed live: real bgzip (`Accept-Ranges: bytes`, has a `.tbi`), so the same
+remote-region-extraction trick used for the HG002 BAM and GIAB truth VCF
+applies directly — `GNOMAD_ANNOTATE` pulls just the padded CAPN3/DMD regions
+(one query per chromosome) from the 16.9GB chr15 file and the similarly large
+chrX file, no full-genome download. `AF_grpmax` (max allele frequency across
+genetic ancestry groups — gnomAD v4's field name for what used to be called
+"popmax AF") is the source for `PopulationEvidence.ancestry_specific_max_af`;
+confirmed via the source VCF's own INFO header, not assumed from an older
+gnomAD version's field-naming convention.

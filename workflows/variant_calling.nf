@@ -6,6 +6,8 @@ include { DEEPVARIANT_CALL } from '../modules/deepvariant_call.nf'
 include { CROSS_CHECK_VCFS } from '../modules/cross_check_vcfs.nf'
 include { FETCH_TRUTH_SET } from '../modules/fetch_truth_set.nf'
 include { HAPPY_BENCHMARK } from '../modules/happy_benchmark.nf'
+include { VEP_ANNOTATE } from '../modules/vep_annotate.nf'
+include { GNOMAD_ANNOTATE } from '../modules/gnomad_annotate.nf'
 
 workflow VARIANT_CALLING {
     // Value channels (not Channel.fromPath queue channels) for anything
@@ -84,5 +86,26 @@ workflow VARIANT_CALLING {
         truth_vcf,
         truth_tbi,
         truth_confident_bed
+    )
+
+    // Annotates the concordant (GATK ∩ DeepVariant) call set — this
+    // pipeline's highest-confidence answer — with transcript consequence
+    // (VEP) and population frequency (gnomAD v4.1), feeding project 4's
+    // VariantEvidenceBundle adapter.
+    gene_annotation_gff     = Channel.value(file(params.gene_annotation_gff))
+    gene_annotation_gff_tbi = Channel.value(file("${params.gene_annotation_gff}.tbi"))
+
+    VEP_ANNOTATE(
+        CROSS_CHECK_VCFS.out.concordant_gatk_repr,
+        gene_annotation_gff,
+        gene_annotation_gff_tbi,
+        reference_fasta,
+        reference_fai
+    )
+
+    GNOMAD_ANNOTATE(
+        VEP_ANNOTATE.out.vcf,
+        VEP_ANNOTATE.out.tbi,
+        regions_bed
     )
 }
