@@ -11,7 +11,7 @@ See `project5_scoping.md` for the full design rationale and decisions, and
 
 ## Status
 
-Batch 5 of N. Modules 1-5 of 7 implemented and verified end-to-end:
+Batch 6 of N. Modules 1-6 of 7 implemented and verified end-to-end:
 
 - `EXTRACT_REGION` — pulls the CAPN3 + DMD padded regions directly out of the
   remote GIAB HG002 60x GRCh38 BAM via HTTP range requests (no full-genome
@@ -43,8 +43,18 @@ Batch 5 of N. Modules 1-5 of 7 implemented and verified end-to-end:
   caller/algorithm), and the two callers' first records agree exactly
   (`chr15:42259883 C>T`), a good early sanity signal ahead of the dedicated
   `CROSS_CHECK_VCFS` module.
+- `CROSS_CHECK_VCFS` — `bcftools isec` concordance between `GATK_CALL` and
+  `DEEPVARIANT_CALL`: 2,271 concordant calls, 47 GATK-only, and — after
+  digging past the raw isec output — only 94 genuine DeepVariant-only
+  variant calls. The raw isec count for DeepVariant-only records is 899, but
+  805 of those are `RefCall`/`NoCall` sites: DeepVariant emits a record for
+  every candidate site it examines, not only confident variant calls, so
+  most of the raw private-record count isn't real caller disagreement. The
+  module's `concordance_summary.txt` reports both numbers so this isn't
+  silently mischaracterized. (Sanity check: 2,318 = 47 + 2,271 and 3,170 =
+  899 + 2,271, both exact.)
 
-Remaining modules (not yet built): `cross_check_vcfs`, `happy_benchmark`.
+Remaining module (not yet built): `happy_benchmark`.
 
 Before running, fetch the scoped reference once (see `scripts/fetch_reference.sh`
 below) — it's gitignored (large binary), not committed.
@@ -64,7 +74,7 @@ HG002 public pre-aligned BAM (GRCh38, remote, region-extracted via HTTP range + 
   [GATK_CALL — done]    [DEEPVARIANT_CALL — done]
         └──────┬───────┘
                ▼
-       cross-check (concordant / discordant calls)
+       cross-check (concordant / discordant calls)  [CROSS_CHECK_VCFS — done]
                ▼
    hap.py vs. GIAB HG002 truth VCF (region-subset confident BED)
                ▼

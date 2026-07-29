@@ -3,6 +3,7 @@ include { BWA_ALIGN } from '../modules/bwa_align.nf'
 include { SORT_MARKDUP } from '../modules/sort_markdup.nf'
 include { GATK_CALL } from '../modules/gatk_call.nf'
 include { DEEPVARIANT_CALL } from '../modules/deepvariant_call.nf'
+include { CROSS_CHECK_VCFS } from '../modules/cross_check_vcfs.nf'
 
 workflow VARIANT_CALLING {
     // Value channels (not Channel.fromPath queue channels) for anything
@@ -54,6 +55,13 @@ workflow VARIANT_CALLING {
         regions_bed
     )
 
-    // Next modules (batch 6+): cross_check_vcfs, happy_benchmark — see
-    // project5_scoping.md pipeline architecture diagram.
+    CROSS_CHECK_VCFS(
+        GATK_CALL.out.vcf,
+        GATK_CALL.out.tbi,
+        DEEPVARIANT_CALL.out.vcf,
+        DEEPVARIANT_CALL.out.tbi
+    )
+
+    // Next module (batch 7): happy_benchmark — see project5_scoping.md
+    // pipeline architecture diagram.
 }
