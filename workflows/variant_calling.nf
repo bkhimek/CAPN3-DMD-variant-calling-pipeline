@@ -2,6 +2,7 @@ include { EXTRACT_REGION } from '../modules/extract_region.nf'
 include { BWA_ALIGN } from '../modules/bwa_align.nf'
 include { SORT_MARKDUP } from '../modules/sort_markdup.nf'
 include { GATK_CALL } from '../modules/gatk_call.nf'
+include { DEEPVARIANT_CALL } from '../modules/deepvariant_call.nf'
 
 workflow VARIANT_CALLING {
     // Value channels (not Channel.fromPath queue channels) for anything
@@ -45,6 +46,14 @@ workflow VARIANT_CALLING {
         regions_bed
     )
 
-    // Next modules (batch 5+): deepvariant_call, cross_check_vcfs,
-    // happy_benchmark — see project5_scoping.md pipeline architecture diagram.
+    DEEPVARIANT_CALL(
+        SORT_MARKDUP.out.bam,
+        SORT_MARKDUP.out.bai,
+        reference_fasta,
+        reference_fai,
+        regions_bed
+    )
+
+    // Next modules (batch 6+): cross_check_vcfs, happy_benchmark — see
+    // project5_scoping.md pipeline architecture diagram.
 }
