@@ -11,7 +11,8 @@ See `project5_scoping.md` for the full design rationale and decisions, and
 
 ## Status
 
-Batch 6 of N. Modules 1-6 of 7 implemented and verified end-to-end:
+**Complete.** Batch 7 of 7 — all 7 modules implemented and verified
+end-to-end:
 
 - `EXTRACT_REGION` — pulls the CAPN3 + DMD padded regions directly out of the
   remote GIAB HG002 60x GRCh38 BAM via HTTP range requests (no full-genome
@@ -53,8 +54,20 @@ Batch 6 of N. Modules 1-6 of 7 implemented and verified end-to-end:
   module's `concordance_summary.txt` reports both numbers so this isn't
   silently mischaracterized. (Sanity check: 2,318 = 47 + 2,271 and 3,170 =
   899 + 2,271, both exact.)
+- `HAPPY_BENCHMARK` — benchmarks each caller's VCF against the GIAB HG002
+  NISTv4.2.1 truth set (remote region-extracted the same way as the source
+  BAM, via `FETCH_TRUTH_SET`), restricted to the padded CAPN3/DMD regions,
+  `--pass-only`. Both callers hit **perfect recall and precision (1.0/1.0)**
+  for SNPs and INDELs in this region: GATK 545/545 SNP + 67/67 INDEL truth
+  variants recovered with 0 false positives; DeepVariant 545/545 SNP +
+  67/67 INDEL, also 0 false positives (DeepVariant's slightly higher
+  QUERY.TOTAL reflects its extra non-PASS RefCall/NoCall records, correctly
+  excluded by `--pass-only`, consistent with the `CROSS_CHECK_VCFS`
+  finding). Both benchmark runs report the same `TRUTH.TOTAL` (612),
+  confirming both correctly used the same fetched truth-set region.
 
-Remaining module (not yet built): `happy_benchmark`.
+All 7 modules done — the pipeline runs FASTQ (remote) → BAM → VCF →
+benchmarked precision/recall report end-to-end.
 
 Before running, fetch the scoped reference once (see `scripts/fetch_reference.sh`
 below) — it's gitignored (large binary), not committed.
@@ -77,6 +90,7 @@ HG002 public pre-aligned BAM (GRCh38, remote, region-extracted via HTTP range + 
        cross-check (concordant / discordant calls)  [CROSS_CHECK_VCFS — done]
                ▼
    hap.py vs. GIAB HG002 truth VCF (region-subset confident BED)
+   [HAPPY_BENCHMARK — done]
                ▼
      precision/recall report per caller, per region
 ```

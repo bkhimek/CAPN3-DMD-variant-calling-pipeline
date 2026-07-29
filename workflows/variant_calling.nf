@@ -4,6 +4,8 @@ include { SORT_MARKDUP } from '../modules/sort_markdup.nf'
 include { GATK_CALL } from '../modules/gatk_call.nf'
 include { DEEPVARIANT_CALL } from '../modules/deepvariant_call.nf'
 include { CROSS_CHECK_VCFS } from '../modules/cross_check_vcfs.nf'
+include { FETCH_TRUTH_SET } from '../modules/fetch_truth_set.nf'
+include { HAPPY_BENCHMARK } from '../modules/happy_benchmark.nf'
 
 workflow VARIANT_CALLING {
     // Value channels (not Channel.fromPath queue channels) for anything
@@ -62,6 +64,25 @@ workflow VARIANT_CALLING {
         DEEPVARIANT_CALL.out.tbi
     )
 
-    // Next module (batch 7): happy_benchmark — see project5_scoping.md
-    // pipeline architecture diagram.
+    FETCH_TRUTH_SET(regions_bed, params.truth_vcf_url, params.truth_bed_url)
+
+    // Truth-set outputs feed two HAPPY_BENCHMARK calls (one per caller), so
+    // they need to be value channels for the same reason as
+    // regions_bed/reference_fasta/reference_fai above.
+    truth_vcf          = FETCH_TRUTH_SET.out.vcf.first()
+    truth_tbi          = FETCH_TRUTH_SET.out.tbi.first()
+    truth_confident_bed = FETCH_TRUTH_SET.out.confident_bed.first()
+
+    gatk_tuple = GATK_CALL.out.vcf.combine(GATK_CALL.out.tbi).map { vcf, tbi -> tuple('gatk', vcf, tbi) }
+    deepvariant_tuple = DEEPVARIANT_CALL.out.vcf.combine(DEEPVARIANT_CALL.out.tbi).map { vcf, tbi -> tuple('deepvariant', vcf, tbi) }
+
+    HAPPY_BENCHMARK(
+        gatk_tuple.mix(deepvariant_tuple),
+        reference_fasta,
+        reference_fai,
+        regions_bed,
+        truth_vcf,
+        truth_tbi,
+        truth_confident_bed
+    )
 }

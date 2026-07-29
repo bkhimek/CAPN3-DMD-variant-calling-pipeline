@@ -17,7 +17,10 @@ process EXTRACT_REGION {
     # Region strings must be chr-prefixed to match the source BAM's contigs
     # (see docs/regions.md) — samtools does remote random access via the
     # BAM's HTTP-range support and its .bai index, no full download needed.
-    REGIONS=\$(awk '{print \$1":"(\$2+1)"-"\$3}' ${regions_bed} | tr '\\n' ' ')
+    # Skip the '#chrom...' header line — samtools silently tolerates it as
+    # an invalid-region warning and continues, but that's undocumented
+    # leniency, not something to depend on.
+    REGIONS=\$(awk '!/^#/ {print \$1":"(\$2+1)"-"\$3}' ${regions_bed} | tr '\\n' ' ')
 
     samtools view -b -o HG002_region_subset.bam ${bam_url} \$REGIONS
     samtools sort -n -@ ${task.cpus} -o HG002_region_namesorted.bam HG002_region_subset.bam
