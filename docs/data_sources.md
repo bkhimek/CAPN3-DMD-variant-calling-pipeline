@@ -66,6 +66,6 @@ project needs. Revisit if project 5 later grows a structural-variant track.
 | BWA-MEM2 | `quay.io/biocontainers/bwa-mem2:2.3--he70b90d_0` |
 | samtools | `quay.io/biocontainers/samtools:1.24--h9dcdb79_1` |
 | bcftools | `quay.io/biocontainers/bcftools:1.24--h487d631_1` |
-| GATK | `broadinstitute/gatk:4.6.2.0` |
+| GATK | `broadinstitute/gatk:4.6.2.0` (also used for `SORT_MARKDUP` — confirmed this image bundles `samtools` at `/usr/bin/samtools` alongside `gatk`, so sort + `MarkDuplicates` + index share one container instead of pulling in a separate Picard-only image) |
 | DeepVariant | `google/deepvariant:1.10.0` |
 | hap.py | `jmcdani20/hap.py:v0.3.12` (pkrusche/hap.py is dead since 2017; this fork is the maintained alternative the scoping doc called out) |

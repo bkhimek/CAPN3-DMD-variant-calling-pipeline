@@ -1,5 +1,6 @@
 include { EXTRACT_REGION } from '../modules/extract_region.nf'
 include { BWA_ALIGN } from '../modules/bwa_align.nf'
+include { SORT_MARKDUP } from '../modules/sort_markdup.nf'
 
 workflow VARIANT_CALLING {
     regions_bed = Channel.fromPath(params.regions_bed)
@@ -26,7 +27,8 @@ workflow VARIANT_CALLING {
         reference_pac
     )
 
-    // Next modules (batch 3+): sort_markdup, gatk_call, deepvariant_call,
-    // cross_check_vcfs, happy_benchmark — see project5_scoping.md pipeline
-    // architecture diagram.
+    SORT_MARKDUP(BWA_ALIGN.out.sam)
+
+    // Next modules (batch 4+): gatk_call, deepvariant_call, cross_check_vcfs,
+    // happy_benchmark — see project5_scoping.md pipeline architecture diagram.
 }

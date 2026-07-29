@@ -11,7 +11,7 @@ See `project5_scoping.md` for the full design rationale and decisions, and
 
 ## Status
 
-Batch 2 of N. Modules 1-2 of 7 implemented and verified end-to-end:
+Batch 3 of N. Modules 1-3 of 7 implemented and verified end-to-end:
 
 - `EXTRACT_REGION` — pulls the CAPN3 + DMD padded regions directly out of the
   remote GIAB HG002 60x GRCh38 BAM via HTTP range requests (no full-genome
@@ -22,9 +22,16 @@ Batch 2 of N. Modules 1-2 of 7 implemented and verified end-to-end:
   coordinates stay in true genome space and line up with the GIAB truth VCF).
   Confirmed 99.76% mapped, 99.22% properly paired, and every mapped read
   lands on chr15 or chrX (no off-target contamination).
+- `SORT_MARKDUP` — coordinate-sorts the aligned reads and flags PCR/optical
+  duplicates via GATK `MarkDuplicates` (the `broadinstitute/gatk` image
+  bundles samtools too, so sort + dedup + index share one container — no
+  separate Picard image needed). Confirmed flagstat totals unchanged from
+  `BWA_ALIGN` (dedup flags reads, doesn't remove them) and a 0.95% duplication
+  rate (6,370 of 673,098 primary reads), consistent with expected library
+  complexity for this coverage.
 
-Remaining modules (not yet built): `sort_markdup`, `gatk_call`,
-`deepvariant_call`, `cross_check_vcfs`, `happy_benchmark`.
+Remaining modules (not yet built): `gatk_call`, `deepvariant_call`,
+`cross_check_vcfs`, `happy_benchmark`.
 
 Before running, fetch the scoped reference once (see `scripts/fetch_reference.sh`
 below) — it's gitignored (large binary), not committed.
@@ -37,7 +44,7 @@ HG002 public pre-aligned BAM (GRCh38, remote, region-extracted via HTTP range + 
   region-subset BAM → FASTQ (R1/R2)          [EXTRACT_REGION — done]
         │  BWA-MEM2 align to GRCh38          [BWA_ALIGN — done]
         ▼
-  aligned BAM → sort + mark duplicates
+  aligned BAM → sort + mark duplicates       [SORT_MARKDUP — done]
         ├──────────────┐
         ▼              ▼
   GATK HaplotypeCaller  DeepVariant
