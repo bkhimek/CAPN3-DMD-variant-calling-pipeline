@@ -1,14 +1,21 @@
 include { EXTRACT_REGION } from '../modules/extract_region.nf'
 include { BWA_ALIGN } from '../modules/bwa_align.nf'
 include { SORT_MARKDUP } from '../modules/sort_markdup.nf'
+include { GATK_CALL } from '../modules/gatk_call.nf'
 
 workflow VARIANT_CALLING {
-    regions_bed = Channel.fromPath(params.regions_bed)
+    // Value channels (not Channel.fromPath queue channels) for anything
+    // consumed by more than one process downstream — a queue channel drains
+    // on its first use, so regions_bed/reference_fasta/reference_fai (each
+    // needed by both an earlier and a later module) would come up empty the
+    // second time otherwise.
+    regions_bed = Channel.value(file(params.regions_bed))
 
     EXTRACT_REGION(regions_bed, params.hg002_bam_url)
 
-    reference_fasta = Channel.fromPath(params.reference_fasta)
-    reference_fai    = Channel.fromPath("${params.reference_fasta}.fai")
+    reference_fasta = Channel.value(file(params.reference_fasta))
+    reference_fai    = Channel.value(file("${params.reference_fasta}.fai"))
+    reference_dict   = Channel.value(file(params.reference_dict))
     reference_0123   = Channel.fromPath("${params.reference_fasta}.0123")
     reference_amb    = Channel.fromPath("${params.reference_fasta}.amb")
     reference_ann    = Channel.fromPath("${params.reference_fasta}.ann")
@@ -29,6 +36,15 @@ workflow VARIANT_CALLING {
 
     SORT_MARKDUP(BWA_ALIGN.out.sam)
 
-    // Next modules (batch 4+): gatk_call, deepvariant_call, cross_check_vcfs,
+    GATK_CALL(
+        SORT_MARKDUP.out.bam,
+        SORT_MARKDUP.out.bai,
+        reference_fasta,
+        reference_fai,
+        reference_dict,
+        regions_bed
+    )
+
+    // Next modules (batch 5+): deepvariant_call, cross_check_vcfs,
     // happy_benchmark — see project5_scoping.md pipeline architecture diagram.
 }

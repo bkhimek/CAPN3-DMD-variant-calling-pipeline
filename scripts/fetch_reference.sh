@@ -54,5 +54,11 @@ echo "Building BWA-MEM2 index..."
 docker run --rm -v "${REF_DIR}:/out" quay.io/biocontainers/bwa-mem2:2.3--he70b90d_0 \
     bwa-mem2 index "/out/$(basename "$OUT_FASTA")"
 
+echo "Building GATK sequence dictionary..."
+DICT_PATH="${REF_DIR}/$(basename "${OUT_FASTA%.fna}").dict"
+rm -f "$DICT_PATH"
+docker run --rm -v "${REF_DIR}:/out" broadinstitute/gatk:4.6.2.0 \
+    gatk CreateSequenceDictionary -R "/out/$(basename "$OUT_FASTA")" -O "/out/$(basename "$DICT_PATH")"
+
 echo "Done. Scoped reference at: $OUT_FASTA"
 echo "Full-genome cache kept at: $CACHE_DIR (safe to delete to reclaim ~4GB; re-run this script to regenerate)"

@@ -11,7 +11,7 @@ See `project5_scoping.md` for the full design rationale and decisions, and
 
 ## Status
 
-Batch 3 of N. Modules 1-3 of 7 implemented and verified end-to-end:
+Batch 4 of N. Modules 1-4 of 7 implemented and verified end-to-end:
 
 - `EXTRACT_REGION` — pulls the CAPN3 + DMD padded regions directly out of the
   remote GIAB HG002 60x GRCh38 BAM via HTTP range requests (no full-genome
@@ -29,9 +29,16 @@ Batch 3 of N. Modules 1-3 of 7 implemented and verified end-to-end:
   `BWA_ALIGN` (dedup flags reads, doesn't remove them) and a 0.95% duplication
   rate (6,370 of 673,098 primary reads), consistent with expected library
   complexity for this coverage.
+- `GATK_CALL` — runs GATK `HaplotypeCaller` restricted to the padded
+  CAPN3/DMD regions (`-L data/reference/regions.bed`), single-sample HG002.
+  Confirmed 2,318 variants called (702 on chr15, 1,616 on chrX), every
+  variant's position falling inside the padded gene regions, with sane
+  QUAL/DP/genotype fields. Needed the reference sequence dictionary
+  (`.dict`), which `scripts/fetch_reference.sh` now also builds via GATK
+  `CreateSequenceDictionary`.
 
-Remaining modules (not yet built): `gatk_call`, `deepvariant_call`,
-`cross_check_vcfs`, `happy_benchmark`.
+Remaining modules (not yet built): `deepvariant_call`, `cross_check_vcfs`,
+`happy_benchmark`.
 
 Before running, fetch the scoped reference once (see `scripts/fetch_reference.sh`
 below) — it's gitignored (large binary), not committed.
@@ -48,6 +55,7 @@ HG002 public pre-aligned BAM (GRCh38, remote, region-extracted via HTTP range + 
         ├──────────────┐
         ▼              ▼
   GATK HaplotypeCaller  DeepVariant
+  [GATK_CALL — done]
         └──────┬───────┘
                ▼
        cross-check (concordant / discordant calls)
