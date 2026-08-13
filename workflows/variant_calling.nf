@@ -1,4 +1,6 @@
 include { EXTRACT_REGION } from '../modules/extract_region.nf'
+include { FASTQC } from '../modules/fastqc.nf'
+include { MULTIQC } from '../modules/multiqc.nf'
 include { BWA_ALIGN } from '../modules/bwa_align.nf'
 include { SORT_MARKDUP } from '../modules/sort_markdup.nf'
 include { GATK_CALL } from '../modules/gatk_call.nf'
@@ -18,6 +20,14 @@ workflow VARIANT_CALLING {
     regions_bed = Channel.value(file(params.regions_bed))
 
     EXTRACT_REGION(regions_bed, params.hg002_bam_url)
+
+    // Raw-read QC/trimming extension, batch 1: FastQC + MultiQC on the raw
+    // EXTRACT_REGION output, before any trimming. TRIM_READS (batch 2) and a
+    // second FASTQC/MULTIQC pass on trimmed reads (batch 3) land here later;
+    // BWA_ALIGN still consumes EXTRACT_REGION's untrimmed output directly
+    // until batch 4 rewires it to the trimmed reads.
+    FASTQC('raw', EXTRACT_REGION.out.r1, EXTRACT_REGION.out.r2)
+    MULTIQC('raw', FASTQC.out.zip)
 
     reference_fasta = Channel.value(file(params.reference_fasta))
     reference_fai    = Channel.value(file("${params.reference_fasta}.fai"))
