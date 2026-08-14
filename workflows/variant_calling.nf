@@ -1,6 +1,7 @@
 include { EXTRACT_REGION } from '../modules/extract_region.nf'
 include { FASTQC } from '../modules/fastqc.nf'
 include { MULTIQC } from '../modules/multiqc.nf'
+include { TRIM_READS } from '../modules/trim_reads.nf'
 include { BWA_ALIGN } from '../modules/bwa_align.nf'
 include { SORT_MARKDUP } from '../modules/sort_markdup.nf'
 include { GATK_CALL } from '../modules/gatk_call.nf'
@@ -28,6 +29,13 @@ workflow VARIANT_CALLING {
     // until batch 4 rewires it to the trimmed reads.
     FASTQC('raw', EXTRACT_REGION.out.r1, EXTRACT_REGION.out.r2)
     MULTIQC('raw', FASTQC.out.zip)
+
+    // Batch 2: fastp adapter/quality trimming. Output isn't consumed by
+    // BWA_ALIGN yet on purpose — that rewire is batch 4, once batch 3's
+    // post-trim FASTQC/MULTIQC pass has confirmed what trimming actually
+    // changed. For now TRIM_READS runs alongside the existing pipeline
+    // without altering it.
+    TRIM_READS(EXTRACT_REGION.out.r1, EXTRACT_REGION.out.r2)
 
     reference_fasta = Channel.value(file(params.reference_fasta))
     reference_fai    = Channel.value(file("${params.reference_fasta}.fai"))
