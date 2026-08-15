@@ -1,6 +1,6 @@
 include { EXTRACT_REGION } from '../modules/extract_region.nf'
-include { FASTQC } from '../modules/fastqc.nf'
-include { MULTIQC } from '../modules/multiqc.nf'
+include { FASTQC as FASTQC_RAW; FASTQC as FASTQC_TRIMMED } from '../modules/fastqc.nf'
+include { MULTIQC as MULTIQC_RAW; MULTIQC as MULTIQC_TRIMMED } from '../modules/multiqc.nf'
 include { TRIM_READS } from '../modules/trim_reads.nf'
 include { BWA_ALIGN } from '../modules/bwa_align.nf'
 include { SORT_MARKDUP } from '../modules/sort_markdup.nf'
@@ -23,19 +23,27 @@ workflow VARIANT_CALLING {
     EXTRACT_REGION(regions_bed, params.hg002_bam_url)
 
     // Raw-read QC/trimming extension, batch 1: FastQC + MultiQC on the raw
-    // EXTRACT_REGION output, before any trimming. TRIM_READS (batch 2) and a
-    // second FASTQC/MULTIQC pass on trimmed reads (batch 3) land here later;
-    // BWA_ALIGN still consumes EXTRACT_REGION's untrimmed output directly
-    // until batch 4 rewires it to the trimmed reads.
-    FASTQC('raw', EXTRACT_REGION.out.r1, EXTRACT_REGION.out.r2)
-    MULTIQC('raw', FASTQC.out.zip)
+    // EXTRACT_REGION output, before any trimming. BWA_ALIGN still consumes
+    // EXTRACT_REGION's untrimmed output directly until batch 4 rewires it
+    // to the trimmed reads.
+    FASTQC_RAW('raw', EXTRACT_REGION.out.r1, EXTRACT_REGION.out.r2)
+    MULTIQC_RAW('raw', FASTQC_RAW.out.zip)
 
     // Batch 2: fastp adapter/quality trimming. Output isn't consumed by
-    // BWA_ALIGN yet on purpose — that rewire is batch 4, once batch 3's
+    // BWA_ALIGN yet on purpose — that rewire is batch 4, once this batch's
     // post-trim FASTQC/MULTIQC pass has confirmed what trimming actually
     // changed. For now TRIM_READS runs alongside the existing pipeline
     // without altering it.
     TRIM_READS(EXTRACT_REGION.out.r1, EXTRACT_REGION.out.r2)
+
+    // Batch 3: FastQC + MultiQC again, this time on TRIM_READS' output, for
+    // a direct before/after comparison against the batch 1 raw-read numbers.
+    // Reuses the same FASTQC/MULTIQC module code as batch 1 (aliased above
+    // as *_RAW / *_TRIMMED since Nextflow needs distinct names to invoke the
+    // same process twice in one workflow) — no code changes needed, exactly
+    // as batch 1's `stage` parameter was designed to allow.
+    FASTQC_TRIMMED('trimmed', TRIM_READS.out.r1, TRIM_READS.out.r2)
+    MULTIQC_TRIMMED('trimmed', FASTQC_TRIMMED.out.zip)
 
     reference_fasta = Channel.value(file(params.reference_fasta))
     reference_fai    = Channel.value(file("${params.reference_fasta}.fai"))
