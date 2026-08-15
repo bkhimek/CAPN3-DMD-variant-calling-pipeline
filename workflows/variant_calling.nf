@@ -54,9 +54,15 @@ workflow VARIANT_CALLING {
     reference_bwt    = Channel.fromPath("${params.reference_fasta}.bwt.2bit.64")
     reference_pac    = Channel.fromPath("${params.reference_fasta}.pac")
 
+    // Batch 4: BWA_ALIGN now consumes TRIM_READS' trimmed output instead of
+    // EXTRACT_REGION's raw reads directly — the one change in this batch.
+    // Everything downstream (SORT_MARKDUP through GNOMAD_ANNOTATE) is
+    // otherwise unmodified; its job here is only to confirm the pipeline's
+    // existing 1.0/1.0 hap.py recall/precision result isn't regressed by
+    // aligning trimmed reads instead of raw ones.
     BWA_ALIGN(
-        EXTRACT_REGION.out.r1,
-        EXTRACT_REGION.out.r2,
+        TRIM_READS.out.r1,
+        TRIM_READS.out.r2,
         reference_fasta,
         reference_fai,
         reference_0123,
