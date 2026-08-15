@@ -59,7 +59,7 @@ splits into separate `smvar`/`stvar` benchmark sets and is CHM13-primary
 with GRCh38 as a lifted-over secondary release — more moving parts than this
 project needs. Revisit if project 5 later grows a structural-variant track.
 
-## Docker image tags (pinned 2026-07-28, verify again before a future rebuild)
+## Docker image tags (pinned 2026-07-28 unless noted per-row; verify again before a future rebuild)
 
 | Tool | Image:tag |
 |------|-----------|
@@ -70,6 +70,9 @@ project needs. Revisit if project 5 later grows a structural-variant track.
 | DeepVariant | `google/deepvariant:1.10.0` |
 | hap.py | `jmcdani20/hap.py:v0.3.12` (pkrusche/hap.py is dead since 2017; this fork is the maintained alternative the scoping doc called out) |
 | VEP | `ensemblorg/ensembl-vep:release_116.0` (pinned 2026-07-29; verified live against Docker Hub's tag list — `release_117.0` does not yet exist, `release_116.0` and `latest` share the same digest, both last pushed 2026-06-10) |
+| FastQC | `quay.io/biocontainers/fastqc:0.12.1--hdfd78af_0` (pinned 2026-08-13; quay.io itself was unreachable from the sandbox this tag was checked from, so verified indirectly via nf-core's own current module source, which quotes this exact tag — FastQC hasn't had a release since 2023, consistent with this being current) |
+| MultiQC | `quay.io/biocontainers/multiqc:1.35--pyhdfd78af_1` (pinned 2026-08-13; live-verified against the quay.io tag API directly — 1.35 is MultiQC's current release, and `_1` is the newer of two builds published for it) |
+| fastp | `quay.io/biocontainers/fastp:1.3.6--h43da1c4_0` (pinned 2026-08-14; live-verified against the quay.io tag API directly, matching fastp's current release, 1.3.6. Worth a note: two indirect sources checked first — a registry mirror and nf-core's own current module — both showed fastp's biocontainers image capping out a full major version earlier at `1.1.0`, and a `1.3.6--h43da1c4_0` tag quoted in a third-party blog post was initially rejected as probably pattern-guessed. The live quay.io API proved both indirect sources were simply stale, and the blog's tag was correct all along — the tag existed, it just hadn't propagated to either secondary source yet.) |
 
 ## Ensembl GRCh38 gene annotation (GFF3) — for `ANNOTATE_CALLS`/VEP
 

@@ -11,63 +11,81 @@ See `project5_scoping.md` for the full design rationale and decisions, and
 
 ## Status
 
-**Complete — core 7-module FASTQ→VCF→benchmark pipeline, plus an
-`ANNOTATE_CALLS` annotation stage (2 modules) feeding
+**Complete — core 7-module FASTQ→VCF→benchmark pipeline, an `ANNOTATE_CALLS`
+annotation stage (2 modules), and a raw-read QC/trimming front end
+(`FASTQ_QC` + `TRIM_READS`, 2 more stages) feeding
 [CAPN3-DMD-variant-classifier](https://github.com/bkhimek/CAPN3-DMD-variant-classifier)'s
-`VariantEvidenceBundle`.** All 9 modules implemented and verified
+`VariantEvidenceBundle`.** All 11 modules implemented and verified
 end-to-end:
 
 - `EXTRACT_REGION` — pulls the CAPN3 + DMD padded regions directly out of the
   remote GIAB HG002 60x GRCh38 BAM via HTTP range requests (no full-genome
   download), converts to paired FASTQ. Confirmed 336,549 paired reads
   extracted across both loci.
-- `BWA_ALIGN` — aligns those reads against a scoped GRCh38 reference (full
-  chr15 + chrX chromosomes, not just the padded region, so alignment
-  coordinates stay in true genome space and line up with the GIAB truth VCF).
-  Confirmed 99.76% mapped, 99.22% properly paired, and every mapped read
-  lands on chr15 or chrX (no off-target contamination).
+- `FASTQ_QC` (pre-trim) — FastQC + MultiQC on the raw extracted reads: 148bp
+  average length, 36.0% GC, one WARN ("Per sequence GC content", likely from
+  mixing two genomically distinct loci in one dataset — DMD's region is
+  ~10x CAPN3's by read share), everything else including Adapter Content a
+  clean PASS, 0% module failure rate.
+- `TRIM_READS` — fastp adapter/quality trimming (defaults +
+  `--detect_adapter_for_pe`). Of 673,098 reads, 650,510 survived (96.65%):
+  22,424 dropped for low quality, 164 for excess ambiguous bases, 2,188
+  (0.33%) had genuine Illumina TruSeq adapter readthrough clipped. Q30 rose
+  91.83%→93.54%, Q20 96.81%→97.99%.
+- `FASTQ_QC` (post-trim) — FastQC + MultiQC again, on the trimmed reads, for
+  a direct before/after comparison: 325,255 pairs (146.95bp average, down
+  from 336,549 pairs at 148bp — matching fastp's own filtering numbers
+  exactly), GC unchanged at 36.0%, one new WARN ("Sequence Length
+  Distribution" — an expected, harmless side effect of reads no longer
+  being a uniform length post-trim), 0% module failure rate.
+- `BWA_ALIGN` — aligns the *trimmed* reads (rewired from raw `EXTRACT_REGION`
+  output once the QC/trimming stages above were verified) against a scoped
+  GRCh38 reference (full chr15 + chrX chromosomes, not just the padded
+  region, so alignment coordinates stay in true genome space and line up
+  with the GIAB truth VCF). Confirmed 99.997% mapped, 99.82% properly
+  paired, and every mapped read lands on chr15 or chrX (no off-target
+  contamination) — both figures improved from the pre-trim pipeline's
+  99.76% / 99.22%, consistent with trimming having already removed the
+  hardest-to-map reads.
 - `SORT_MARKDUP` — coordinate-sorts the aligned reads and flags PCR/optical
   duplicates via GATK `MarkDuplicates` (the `broadinstitute/gatk` image
   bundles samtools too, so sort + dedup + index share one container — no
   separate Picard image needed). Confirmed flagstat totals unchanged from
-  `BWA_ALIGN` (dedup flags reads, doesn't remove them) and a 0.95% duplication
-  rate (6,370 of 673,098 primary reads), consistent with expected library
-  complexity for this coverage.
+  `BWA_ALIGN` (dedup flags reads, doesn't remove them) and a 0.92% duplication
+  rate (6,007 of 650,510 primary reads).
 - `GATK_CALL` — runs GATK `HaplotypeCaller` restricted to the padded
   CAPN3/DMD regions (`-L data/reference/regions.bed`), single-sample HG002.
-  Confirmed 2,318 variants called (702 on chr15, 1,616 on chrX), every
+  Confirmed 2,314 variants called (700 on chr15, 1,614 on chrX), every
   variant's position falling inside the padded gene regions, with sane
   QUAL/DP/genotype fields. Needed the reference sequence dictionary
   (`.dict`), which `scripts/fetch_reference.sh` now also builds via GATK
   `CreateSequenceDictionary`.
 - `DEEPVARIANT_CALL` — runs DeepVariant (WGS model) on the same
   `SORT_MARKDUP` BAM, region-restricted the same way as `GATK_CALL`, for the
-  later cross-caller check. Confirmed 3,170 variants called (837 chr15,
-  2,333 chrX) — a different, larger count than GATK's is expected (different
-  caller/algorithm), and the two callers' first records agree exactly
-  (`chr15:42259883 C>T`), a good early sanity signal ahead of the dedicated
-  `CROSS_CHECK_VCFS` module.
+  later cross-caller check. Confirmed 2,906 variants called (805 chr15,
+  2,101 chrX) — a different, larger count than GATK's is expected (different
+  caller/algorithm).
 - `CROSS_CHECK_VCFS` — `bcftools isec` concordance between `GATK_CALL` and
-  `DEEPVARIANT_CALL`: 2,271 concordant calls, 47 GATK-only, and — after
-  digging past the raw isec output — only 94 genuine DeepVariant-only
-  variant calls. The raw isec count for DeepVariant-only records is 899, but
-  805 of those are `RefCall`/`NoCall` sites: DeepVariant emits a record for
-  every candidate site it examines, not only confident variant calls, so
-  most of the raw private-record count isn't real caller disagreement. The
-  module's `concordance_summary.txt` reports both numbers so this isn't
-  silently mischaracterized. (Sanity check: 2,318 = 47 + 2,271 and 3,170 =
-  899 + 2,271, both exact.)
+  `DEEPVARIANT_CALL`: 2,267 concordant calls, 47 GATK-only, and — after
+  digging past the raw isec output — only 89 genuine DeepVariant-only
+  variant calls. The bulk of DeepVariant's raw private-record count is
+  `RefCall`/`NoCall` sites: DeepVariant emits a record for every candidate
+  site it examines, not only confident variant calls, so most of the raw
+  private-record count isn't real caller disagreement. The module's
+  `concordance_summary.txt` reports both numbers so this isn't silently
+  mischaracterized. (Sanity check: 2,314 = 47 + 2,267 and 2,906 = 639 +
+  2,267, both exact.)
 - `HAPPY_BENCHMARK` — benchmarks each caller's VCF against the GIAB HG002
   NISTv4.2.1 truth set (remote region-extracted the same way as the source
   BAM, via `FETCH_TRUTH_SET`), restricted to the padded CAPN3/DMD regions,
   `--pass-only`. Both callers hit **perfect recall and precision (1.0/1.0)**
   for SNPs and INDELs in this region: GATK 545/545 SNP + 67/67 INDEL truth
   variants recovered with 0 false positives; DeepVariant 545/545 SNP +
-  67/67 INDEL, also 0 false positives (DeepVariant's slightly higher
-  QUERY.TOTAL reflects its extra non-PASS RefCall/NoCall records, correctly
-  excluded by `--pass-only`, consistent with the `CROSS_CHECK_VCFS`
-  finding). Both benchmark runs report the same `TRUTH.TOTAL` (612),
-  confirming both correctly used the same fetched truth-set region.
+  67/67 INDEL, also 0 false positives. Both benchmark runs report the same
+  `TRUTH.TOTAL` (612), confirming both correctly used the same fetched
+  truth-set region — and this result is unchanged from before the
+  raw-read QC/trimming extension was added, confirming trimming didn't
+  regress the pipeline's headline validation result.
 
 - `VEP_ANNOTATE` — runs Ensembl VEP against the concordant (GATK ∩
   DeepVariant) call set — this pipeline's highest-confidence answer — using a
@@ -89,11 +107,14 @@ end-to-end:
   `chrX:31478233 C>T` (gnomAD AF=0.938899, matches exactly) — both common
   variants, consistent with this pipeline's earlier finding that HG002's
   CAPN3/DMD calls are ordinary benign background polymorphism, not disease
-  variants (see `~/projects/HANDOFF.md`).
+  variants (see `~/projects/HANDOFF.md`). Both example variants and their
+  annotations are unchanged after the raw-read QC/trimming extension —
+  confirmed by direct spot-check, not assumed.
 
-All 9 modules done — the pipeline runs FASTQ (remote) → BAM → VCF →
-benchmarked precision/recall report → annotated (transcript consequence +
-population frequency) call set end-to-end.
+All 11 modules done — the pipeline runs FASTQ (remote) → raw-read QC →
+trimming → trimmed-read QC → BAM → VCF → benchmarked precision/recall
+report → annotated (transcript consequence + population frequency) call
+set end-to-end.
 
 Before running, fetch the scoped reference once (see `scripts/fetch_reference.sh`
 below) and the gene annotation once (see `scripts/fetch_gene_annotation.sh`)
@@ -105,6 +126,12 @@ below) and the gene annotation once (see `scripts/fetch_gene_annotation.sh`)
 HG002 public pre-aligned BAM (GRCh38, remote, region-extracted via HTTP range + .bai)
         ▼
   region-subset BAM → FASTQ (R1/R2)          [EXTRACT_REGION — done]
+        ▼
+  FastQC + MultiQC on raw reads              [FASTQ_QC (pre-trim) — done]
+        ▼
+  adapter/quality trimming (fastp)           [TRIM_READS — done]
+        ▼
+  FastQC + MultiQC on trimmed reads          [FASTQ_QC (post-trim) — done]
         │  BWA-MEM2 align to GRCh38          [BWA_ALIGN — done]
         ▼
   aligned BAM → sort + mark duplicates       [SORT_MARKDUP — done]
